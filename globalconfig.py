@@ -1,0 +1,2 @@
+vars = lambda: None
+
