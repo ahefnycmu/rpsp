@@ -3,28 +3,22 @@
 """
 Created on Tue Apr 25 20:07:55 2017
 
-@author: ahefny
+@author: ahefny, zmarinho
 """
+
+from collections import OrderedDict
 
 import numpy as np
 import numpy.linalg as npla
 import theano
 import theano.tensor as T
-import scipy.stats
+
 import globalconfig
-from collections import OrderedDict
-
+from SGD_opt import optimizers
+from cg_optimizer import ConstrainedOptimizer, DefaultConstraintOptimizerOps
 from policy_learn import BasePolicyUpdater
-from cg_optimizer import ConstrainedOptimizer, DefaultConstraintOptimizerOps, SemiAutoConstraintOptimizerOps, GaussianFisherConstraintOptimizerOps
 from psr_lite.psr_lite.psr_base import AutoRegressiveControlledModel
-
-from SGD_opt import adam, RMSProp, adadelta, adagrad, sgd, optimizers
-from psr_lite.psr_lite.utils.nn import tf_get_normalized_grad,tf_get_normalized_grad_per_param
-#from psr_lite.psr_lite.utils.nn import dbg_print,dbg_print_stats,dbg_print_shape,dbg_nn_assert_notnan,
-from psr_lite.psr_lite.utils.nn import dbg_print_stats, dbg_print
-from time import time
-from IPython import  embed
-from collections import defaultdict
+from psr_lite.psr_lite.utils.nn import tf_get_normalized_grad_per_param
 
 class Baseline:
     def get_value_fn(self, trajs, traj_info):
@@ -196,7 +190,7 @@ def create_true_mean_function_nonseq(t_traj_info, t_single_traj_fn):
     
     return ccs
 
-def create_all_function_valid(t_traj_info, t_single_traj_fn,num_trajs=None,info_keys=None):
+def create_all_function_valid(t_traj_info, t_single_traj_fn, num_trajs=None, info_keys=None):
     '''        
     check if all checks are valid for each sequence
     '''  
@@ -207,8 +201,7 @@ def create_all_function_valid(t_traj_info, t_single_traj_fn,num_trajs=None,info_
     return ccs                  
 
 def _np2theano(name, np_arr):
-    fn = [T.vector, T.matrix, T.tensor3][np_arr.ndim-1]        
-    #return T.specify_shape(fn(name, dtype=np_arr.dtype), np_arr.shape, name=name)    
+    fn = [T.vector, T.matrix, T.tensor3][np_arr.ndim-1]
     return fn(name, dtype=np_arr.dtype)
             
 # Note: This class assumes continuous actions
@@ -322,7 +315,6 @@ class NNPolicyUpdater(BasePolicyUpdater):
         info['fvel_avg'] = np.mean([np.sum(t.vel) for t in trajs])
         dbg_keys = trajs[0].dbg_info.keys()
         for k in dbg_keys:
-            #print('all act_var batch', [t.dbg_info['act_var'] for t in trajs])
             info[k] = np.mean([np.mean(t.dbg_info[k], axis=0) for t in trajs], axis=0)
         return info
         
@@ -384,16 +376,11 @@ class GradientPolicyUpdater(NNPolicyUpdater):
         '''
         self._t_lr = theano.shared(self._lr, 'lr')
 
-        #self.t_model_cost = T.mean(self._t_cost(t_traj_info),axis=0)
-        #updates = adam(self.t_model_cost, self.policy.params, self._t_lr, clip_bounds=self.clips)   
-        #return updates     
-
         t_cost = self._t_cost(t_traj_info)                                  
         beta = globalconfig.vars.args.beta
         grads, weight, updates = tf_get_normalized_grad_per_param(t_cost, self._policy.params, beta=beta, normalize=self._normalize_grad)
         opt_updates = optimizers[self._optimizer](0.0, self.policy.params, self._t_lr, all_grads = grads)   
         updates.extend(opt_updates)
-        #grads = dbg_print_stats('grads', grads)
     
         info = {'total_cost' : t_cost, 'var_g':T.sum([T.sum(gg**2) for gg in grads]), 'sum_g':T.sum([T.sum(T.abs_(gg)) for gg in grads])}
         if self._normalize_grad: info['gradient_weight'] = weight
@@ -415,14 +402,9 @@ class GradientPolicyUpdater(NNPolicyUpdater):
 def t_vrpg_traj_cost(policy, t_single_traj_info):
     valid_len = t_single_traj_info['length']
     X = t_single_traj_info['pre_states'][:valid_len]
-    #X = dbg_print_shape('vrpg_traj_cost state', X)
     U = t_single_traj_info['act'][:valid_len]
-    adv = t_single_traj_info['advantage'][:valid_len]    
-    #X= dbg_print_stats('state', X)
-    #U= dbg_print_stats('U', U)
-    probs = policy._t_compute_prob(X,U)    
-    #probs= dbg_print_stats('probs', probs)
-    #adv= dbg_print_stats('adv', adv)
+    adv = t_single_traj_info['advantage'][:valid_len]
+    probs = policy._t_compute_prob(X,U)
     reinf_loss = T.log(probs+1e-13)*(adv)
     return reinf_loss 
 
@@ -439,173 +421,117 @@ def _t_gaussian_kl(t_old_mean, t_old_log_std, t_mean, t_log_std):
     return T.sum(kl, axis=-1)   
         
 ##############################################################################
-                    
-class TRPOPolicyUpdater(NNPolicyUpdater): 
+
+
+class TRPOPolicyUpdater(NNPolicyUpdater):
     '''
     Implements trust regionpolicy optimization.
     https://arxiv.org/abs/1502.05477
     '''
+
     def __init__(self, policy, **kwargs):
         NNPolicyUpdater.__init__(self, policy, **kwargs)
         self._step = kwargs['lr']
-        print 'STEP ',self._step
-        self._params = policy.params        
-        X = T.tensor3()        
+        print 'STEP ', self._step
+        self._params = policy.params
+        X = T.tensor3()
         self._act_dist_fn = theano.function(inputs=[X], outputs=policy._t_compute_gaussian(X))
         self._opt = None
-        self._t_prob_ratio_lims = [None,None]
+        self._t_prob_ratio_lims = [None, None]
         self._hvec = kwargs.pop('hvec', 'exact')
-    
+
     def _append_actiondist_info(self, traj_info):
-        traj_info['act_mean'],logstd = self._act_dist_fn(traj_info['pre_states'])  
-        N,T,d = traj_info['act_mean'].shape        
-        logstd = np.tile(logstd, (T,1)).reshape((T,N,d)).transpose(1,0,2)
-        traj_info['act_logstd'] = logstd        
-        
+        traj_info['act_mean'], logstd = self._act_dist_fn(traj_info['pre_states'])
+        N, T, d = traj_info['act_mean'].shape
+        logstd = np.tile(logstd, (T, 1)).reshape((T, N, d)).transpose(1, 0, 2)
+        traj_info['act_logstd'] = logstd
+
     def _construct_traj_info(self, trajs):
-        out = NNPolicyUpdater._construct_traj_info(self, trajs)                        
-        self._append_actiondist_info(out)                   
+        out = NNPolicyUpdater._construct_traj_info(self, trajs)
+        self._append_actiondist_info(out)
         return out
-      
+
     def _t_traj_klscore(self, t_single_traj_info):
         valid_len = t_single_traj_info['length']
         X = t_single_traj_info['pre_states'][:valid_len]
         act_mean = t_single_traj_info['act_mean'][:valid_len]
         act_logstd = t_single_traj_info['act_logstd'][:valid_len]
-        t_new_mean, t_new_logstd = self._policy._t_compute_gaussian(X) 
-        kl = _t_gaussian_kl(act_mean, act_logstd, t_new_mean, t_new_logstd)        
+        t_new_mean, t_new_logstd = self._policy._t_compute_gaussian(X)
+        kl = _t_gaussian_kl(act_mean, act_logstd, t_new_mean, t_new_logstd)
         return kl
-    
+
     def _t_append_actiondist_info(self, t_traj_info):
         X = t_traj_info['pre_states']
-        #X = dbg_print_stats('pre_states [%s]' % X.name, X)
         N = X.shape[0]
         T = X.shape[1]
 
-        X = X.reshape((N*T,-1))
-            
-        t_new_mean, t_new_logstd = self._policy._t_compute_gaussian(X) 
+        X = X.reshape((N * T, -1))
 
-        t_new_mean = t_new_mean.reshape((N,T,-1))
-        t_new_logstd = t_new_logstd.reshape((N,T,-1))
+        t_new_mean, t_new_logstd = self._policy._t_compute_gaussian(X)
+
+        t_new_mean = t_new_mean.reshape((N, T, -1))
+        t_new_logstd = t_new_logstd.reshape((N, T, -1))
         t_new_mean.name = 'new_act_mean'
         t_new_logstd.name = 'new_act_logstd'
-        
+
         t_traj_info['new_act_mean'] = t_new_mean
         t_traj_info['new_act_logstd'] = t_new_logstd
         return t_traj_info
-    
-    def _t_ratio_limits(self, t_single_traj_info,):
+
+    def _t_ratio_limits(self, t_single_traj_info, ):
         r_max = globalconfig.vars.args.r_max
-        r_min = 1/float(r_max)
-        
+        r_min = 1 / float(r_max)
+
         prob_ratio = self._t_prob_ratio(t_single_traj_info)
-        #prob_ratio = dbg_print_stats('prob_ratio', prob_ratio)
-        upper_bound_valid = T.lt(T.max(prob_ratio),r_max)
-        lower_bound_valid = T.gt(T.min(prob_ratio),r_min)
-        #lower_bound_valid = dbg_print('lower', lower_bound_valid)
-        #upper_bound_valid = dbg_print('upper', upper_bound_valid)
+        upper_bound_valid = T.lt(T.max(prob_ratio), r_max)
+        lower_bound_valid = T.gt(T.min(prob_ratio), r_min)
         valid = T.switch(T.and_(lower_bound_valid, upper_bound_valid), 1, -1)
         return valid
-        
+
     def _t_prob_ratio(self, t_single_traj_info):
         valid_len = t_single_traj_info['length']
-        #valid_len = dbg_print_stats('length', valid_len)        
-        #X = dbg_print_stats('states', X)
         U = t_single_traj_info['act'][:valid_len]
-        #U = dbg_print_stats('act', U)
-        #adv = dbg_print_stats('adv', adv)
-        act_mean = t_single_traj_info['act_mean'][:valid_len] 
-        #act_mean = dbg_print_stats('actm', act_mean)
-        act_logstd = t_single_traj_info['act_logstd'][:valid_len]        
-        #act_logstd = dbg_print_stats('acts', act_logstd)
+        act_mean = t_single_traj_info['act_mean'][:valid_len]
+        act_logstd = t_single_traj_info['act_logstd'][:valid_len]
         logprobs = -act_logstd - 0.5 * ((U - act_mean) ** 2) * np.exp(-2 * act_logstd)
-        t_new_mean = t_single_traj_info['new_act_mean'][:valid_len]        
-        #t_new_mean = dbg_print_stats('t_new_mean', t_new_mean)
-        t_new_logstd = t_single_traj_info['new_act_logstd'][:valid_len]        
-        #t_new_logstd = dbg_print_stats('t_new_logstd', t_new_logstd)
-        
+        t_new_mean = t_single_traj_info['new_act_mean'][:valid_len]
+        t_new_logstd = t_single_traj_info['new_act_logstd'][:valid_len]
+
         t_new_prec = T.exp(-2 * t_new_logstd)
         t_new_logprobs = -t_new_logstd - 0.5 * ((U - t_new_mean) ** 2) * t_new_prec
-        #t_new_logprobs = dbg_print_stats('t_new_logprobs', t_new_logprobs)
-        prob_ratio = T.exp(T.sum(t_new_logprobs-logprobs,axis=1))        
+        prob_ratio = T.exp(T.sum(t_new_logprobs - logprobs, axis=1))
         return prob_ratio
-                
+
     def _t_single_traj_cost(self, t_single_traj_info):
         valid_len = t_single_traj_info['length']
-        adv = t_single_traj_info['advantage'][:valid_len]   
-        prob_ratio = self._t_prob_ratio(t_single_traj_info)                
-        t_new_logstd = t_single_traj_info['new_act_logstd'][:valid_len]        
-        #t_new_logstd = dbg_print_stats('t_new_logstd', t_new_logstd)
-        
+        adv = t_single_traj_info['advantage'][:valid_len]
+        prob_ratio = self._t_prob_ratio(t_single_traj_info)
+
+        t_new_logstd = t_single_traj_info['new_act_logstd'][:valid_len]
         t_new_prec = T.exp(-2 * t_new_logstd)
-        #prob_ratio = dbg_print_stats('probr', prob_ratio)
-      
-        cost = prob_ratio*(adv)
-        
+
+        cost = prob_ratio * (adv)
         cost = cost + 0.0 * T.sum(t_new_prec, axis=-1)
-        #cost = dbg_print_stats('cost', cost)
-         
-        #cg = T.exp(-2 * t_new_logstd) * (t_new_mean - U)
-        #cg = dbg_print_stats('cg', cg)
-        
-        #cost = dbg_nn_assert_notnan(cost, 'nan cost')
-        #cost = dbg_print_stats('cost ', cost)
-        return cost #+ T.sum(cg) * 1e-10
-                
-    def _build_updater(self, t_traj_info, opt_inputs = None):        
-        if opt_inputs is None: opt_inputs = t_traj_info.values() 
+        return cost
+
+    def _build_updater(self, t_traj_info, opt_inputs=None):
+        if opt_inputs is None: opt_inputs = t_traj_info.values()
         t_traj_info = t_traj_info.copy()
         t_traj_info = self._t_append_actiondist_info(t_traj_info)
-                
+
         print 'Building Optimizer ...'
         opt_cost = create_true_mean_function_nonseq(t_traj_info, self._t_single_traj_cost)
-        opt_constraint = create_true_mean_function_nonseq(t_traj_info, self._t_traj_klscore)        
+        opt_constraint = create_true_mean_function_nonseq(t_traj_info, self._t_traj_klscore)
         ratio_checks = create_all_function_valid(t_traj_info, self._t_ratio_limits)
-        #opt_cost = dbg_print_stats('opt_cost::TRPO::nn', opt_cost)
         gclip = globalconfig.vars.args.gclip
         ops = DefaultConstraintOptimizerOps(opt_cost, opt_constraint, opt_inputs,
                                             opt_inputs, self._params, ratio_checks,
-                                            hvec=self._hvec)#,\
-                                            #clip_bounds=[-gclip,gclip], normalize=True)
-        
-        #ops = GaussianFisherConstraintOptimizerOps(opt_cost, t_traj_info, opt_inputs, self._params)    
-        
-        self._opt = ConstrainedOptimizer(ops, self._params, step=self._step) 
-        print 'Finished building optimizer'    
-        
-    def _update(self, traj_info):           
-        self._opt.optimize(traj_info.values(),traj_info.values())
+                                            hvec=self._hvec)
+
+        self._opt = ConstrainedOptimizer(ops, self._params, step=self._step)
+        print 'Finished building optimizer'
+
+    def _update(self, traj_info):
+        self._opt.optimize(traj_info.values(), traj_info.values())
         reinf_cost = self._opt._ops.cost(*traj_info.values())
         return {'trpo_cost': reinf_cost}
-
-class RNN_TRPOPolicyUpdater(TRPOPolicyUpdater):
-    def __init__(self, *args, **kwargs):
-        super(RNN_TRPOPolicyUpdater, self).__init__(*args, **kwargs)
-                     
-    def _construct_traj_info(self, trajs):
-        out = NNPolicyUpdater._construct_traj_info(self, trajs)                                
-    
-        out['act_mean'] = np.empty_like(out['act'])
-        out['act_logstd'] = np.empty_like(out['act'])
-        
-        for i in xrange(len(out['length'])):
-            out['act_mean'][i,:,:] = trajs[i].dbg_info['act_mean']
-            out['act_logstd'][i,:,:] = trajs[i].dbg_info['act_logstd']
-        
-        return out
-        
-    def _get_rnn_states(self, t_traj_info):
-        U = t_traj_info['act']
-        X = t_traj_info['post_states']
-
-        states = self.policy._t_compute_prestates_batch(X,U)        
-        states.name = 'rnn_states'
-        return states
-        
-    def _build_updater(self, t_traj_info):
-        opt_inputs = t_traj_info.values()
-        t_traj_info = t_traj_info.copy()
-        t_traj_info['pre_states'] = self._get_rnn_states(t_traj_info)                
-        super(RNN_TRPOPolicyUpdater, self)._build_updater(t_traj_info, opt_inputs)
-    

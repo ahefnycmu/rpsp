@@ -14,7 +14,6 @@ from theano.tensor.nlinalg import matrix_inverse
 
 import psr_base
 import utils.nn
-from utils.nn import dbg_print_shape
 from utils.nn import reshape_mat_f
 from utils.nn import cg_solve, cg_solve_batch, neumann_inv, neumann_inv_batch, batched_matrix_inverse
 from utils.nn import CGD_optimizer
@@ -31,22 +30,18 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
     def __init__(self, psr, optimizer='sgd', optimizer_step=1.0,
                  optimizer_iterations=0, val_trajs=0, 
                  optimizer_min_step=1e-5, rng=None, opt_h0=False,
-                 opt_U=0.0, opt_V=0.0, psr_norm='I', psr_cond='kbr', psr_iter=0, psr_smooth='I'):
+                 psr_norm='I', psr_cond='kbr', psr_iter=0, psr_smooth='I'):
         
         rnn_filter.BaseRNNFilter.__init__(self, psr.state_dimension, psr.horizon_length,
                                           optimizer, optimizer_step, optimizer_iterations,
-                                          optimizer_min_step, val_trajs, rng=rng, opt_h0=opt_h0)        
-        
-                             
-        self._psr_iter = psr_iter  
+                                          optimizer_min_step, val_trajs, rng=rng, opt_h0=opt_h0)
+        self._psr_iter = psr_iter
         self._psr_cond = psr_cond
         self._state_norm = psr_norm   
         smooth_toks = psr_smooth.split('_')
         self._state_smooth = smooth_toks[0]
         if len(smooth_toks)>1:
             self._state_smooth_coeff = float(smooth_toks[1])
-        self._opt_U = opt_U
-        self._opt_V = opt_V
                 
         self._f_obs = None
         self._f_act = None
@@ -90,7 +85,6 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         self._fut = self._rffpsr._fut  
         self._feat_dim = self._rffpsr._feat_dim
         self._state_dim = self._rffpsr.state_dimension
-        #self._state0 = self._rffpsr.initial_state this is set when training occurs
         self._fext_fut_act = self._rffpsr._fext_fut_act
         self._fext_act = self._rffpsr._fext_act
         self._fext_obs = self._rffpsr._fext_obs
@@ -109,34 +103,13 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         params={}
         params['rffpsr'] = self._rffpsr._save()
         return params
-        
-        
+
     def _reset_psr(self, psr):
-        self.set_psr(psr)    
-        if self._opt_U>0.0 or self._opt_V>0.0:
-            # Implement feature extraction using Theano
-            if self._f_obs is None:
-                # First time: create parameters
-                self._f_obs, self._t_U_obs, self._t_V_obs = self._t_rffpca(self._rffpsr._fext_obs, 'obs')
-                self._f_act, self._t_U_act, self._t_V_act = self._t_rffpca(self._rffpsr._fext_act, 'act')
-                self._f_fut_act, self._t_U_fut_act, self._t_V_fut_act = self._t_rffpca(self._rffpsr._fext_fut_act, 'fut_act')
-            else:
-                # Update parameters
-                self._t_U_obs.set_value(self._rffpsr._fext_obs._U.astype(theano.config.floatX))
-                self._t_V_obs.set_value(self._rffpsr._fext_obs._base_extractor._V.astype(theano.config.floatX))
-                self._t_U_act.set_value(self._rffpsr._fext_act._U.astype(theano.config.floatX))
-                self._t_V_act.set_value(self._rffpsr._fext_act._base_extractor._V.astype(theano.config.floatX))
-                self._t_U_fut_act.set_value(self._rffpsr._fext_fut_act._U.astype(theano.config.floatX))
-                self._t_V_fut_act.set_value(self._rffpsr._fext_fut_act._base_extractor._V.astype(theano.config.floatX))
-                                
-            self._fext_obs = FeatureExtractor()
-            self._fext_act = FeatureExtractor()
-            self._fext_fut_act = FeatureExtractor()
-        else:
-            # Implement feature extraction using numpy
-            self._f_obs = lambda x: x
-            self._f_act = lambda x: x
-            self._f_fut_act = lambda x: x
+        self.set_psr(psr)
+        self._f_obs = lambda x: x
+        self._f_act = lambda x: x
+        self._f_fut_act = lambda x: x
+        return
             
     def train(self, traj_obs, traj_act, traj_act_probs=None, on_unused_input='raise'):
         self._reset_psr(self._rffpsr)
@@ -185,29 +158,12 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         self._t_UU_efo = theano.shared(name='UU_efo', value=psr._U_efo.reshape((K.obs,-1), order='F').astype(theano.config.floatX))         
         self._t_U_oo = theano.shared(name='U_oo', value=psr._U_oo.astype(theano.config.floatX))
         self._t_UT_st = theano.shared(name='U_st', value=psr._U_st.T.astype(theano.config.floatX))
-        
-        #super(RFFPSR_RNN,self).__init__(psr, noise_model, **kwargs)
-        ##overwrite
-        #self._fut = psr._fut
-        #self._fext_act = psr._fext_act
-        #self._fext_obs = psr._fext_obs
-        #self._fext_fut_act = psr._fext_fut_act
-                                            
+
         s0 = psr.initial_state    
         print 'state0 : ', s0    
         self._t_state0 = theano.shared(name='state0',value=s0.astype(theano.config.floatX))
                            
-        self._params_state = [self._t_W_s2ex,self._t_W_s2oo]  
-        self._params_proj = []
-        
-        if self._opt_U>0.0:
-            self._params_proj += [self._t_UU_efa, self._t_UU_efo, self._t_U_oo, self._t_UT_st]
-            self._params_proj += [self._t_U_obs, self._t_U_act, self._t_U_fut_act]
-
-        if self._opt_V>0.0:
-            self._params_proj += [self._t_V_obs, self._t_V_act, self._t_V_fut_act]
-            
-        
+        self._params_state = [self._t_W_s2ex,self._t_W_s2oo]
         self._params_obs = [self._t_W_1s]
         self._params_guide = [self._t_W_h]      
 
@@ -220,14 +176,7 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
     
     def get_projs(self):
         projs = self._rffpsr.get_projs()
-        if self._opt_U>0.0:
-            projs['U_st'] = self._t_UT_st.get_value().T
-            projs['U_fut_act'] = self._t_U_fut_act.get_value()
-            projs['U_obs'] = self._t_U_obs.get_value()
-            projs['U_act'] = self._t_U_act.get_value()
-            projs['UU_efo'] = self._t_UU_efo.get_value()
-            projs['UU_efa'] = self._t_UU_efa.get_value()
-            projs['U_oo'] = self._t_U_oo.get_value()     
+
         return projs
     
     def predict_horizon(self, state, fut_act):       
@@ -247,8 +196,7 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
             return
         if check_before_update:
             params_before = np.copy(self.get_params())
-            
-        
+
         for p in self.params:
             x = p.get_value(borrow=True)
             s = x.shape
@@ -343,9 +291,7 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         ss = T.reshape(T.dot(A, C_efo_fa), [-1]) 
         ss.name = 'tf_update_state::ss_Cefodot'                                   
         ss = T.dot(self._t_UT_st, ss)
-        #assert T.isnan(ss), embed()    
         ss.name = 'tf_update_state::Uss_dot'
-        #ss = T.tanh(ss)    
         ss = self._norm_method(ss)
         ss = self._smooth(ss, t_state)
 
@@ -353,22 +299,22 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         self._dbg.out = C_ex, C_oo, B, A, ss
         
         # Adding the sum of parameters fixes a Theano bug.
-        return ss + sum(T.sum(p)*1e-30 for p in (self.params + self._params_proj)) 
+        return ss + sum(T.sum(p)*1e-30 for p in self.params)
 
     def _t_state_noop(self, state, *args):
         return state
 
     def _t_state_l2norm(self, state):
         ss_norm2 = T.sum(state**2)  
-        state = T.switch(T.lt(ss_norm2 ,self._max_state_norm2), \
-                         state*(self._max_state_norm / T.sqrt(ss_norm2)),\
+        state = T.switch(T.lt(ss_norm2 ,self._max_state_norm2),
+                         state*(self._max_state_norm / T.sqrt(ss_norm2)),
                          state / T.sqrt(ss_norm2))
         return state
 
     def _t_clamp_state_l2norm(self, state):        
         ss_norm2 = T.sum(state**2)  
-        state = T.switch(T.lt(ss_norm2 ,self._max_state_norm2),\
-                          state*(self._max_state_norm / T.sqrt(ss_norm2)),\
+        state = T.switch(T.lt(ss_norm2 ,self._max_state_norm2),
+                          state*(self._max_state_norm / T.sqrt(ss_norm2)),
                           state)
         return state
         
@@ -420,17 +366,15 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         ss = T.batched_dot(A, C_efo_fa).reshape([N,-1])        
         ss.name = 'tf_update_state::ss_Cefodot'                                   
         ss = T.dot(ss, self._t_UT_st.T)
-        #assert T.isnan(ss), embed()    
         ss.name = 'tf_update_state::Uss_dot'
         ss = self._norm_method(ss)
         ss = self._smooth(ss, t_state_mat)
-        #ss = T.tanh(ss)                  
         
         self._dbg_batch = lambda : None
         self._dbg_batch.out = C_ex, C_oo, B, A, ss
-        
+
         # Adding the sum of parameters fixes a Theano bug.
-        return ss + sum(T.sum(p)*1e-30 for p in (self.params + self._params_proj))
+        return ss + sum(T.sum(p)*1e-30 for p in self.params)
 
     def tf_predict_obs(self, t_state, t_act):        
         is_vec = False
@@ -459,166 +403,94 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         t_in = utils.nn.row_kr_product(t_prestates_mat, t_fafeat_mat)
         t_out = T.dot(t_in, self._t_W_h)
         return t_out 
-    
 
-    
-                 
-# class Extended_RFFPSR_RNN(RFFPSR_RNN):
-#     def __init__(self, *args, **kwargs):
-#         obs_dim = kwargs.pop('x_dim')
-#         win = kwargs.pop('win')
-#         super(Extended_RFFPSR_RNN,self).__init__(*args, **kwargs)
-#         self._obs_dim = obs_dim
-#         self._win = win    
-#         self._win_dim = self._obs_dim*self._win
-#      
-#     def _process_obs(self, obs):
-#         if obs.ndim==1:
-#             obs = obs.reshape(1,-1)
-#         last_obs = obs[:,-self._obs_dim:]
-#         ofeat = self._fext_obs.process(last_obs)
-#         assert not np.isnan(ofeat).any(), 'obsfeat is not nan'
-#         assert not np.isinf(ofeat).any(), 'obsfeat is not inf'     
-#         new_obs = np.concatenate([ofeat.T , obs.T], axis=0).T
-#         return new_obs
-#     
-#     def tf_extract_obs(self, obs):
-#         if obs.ndim==2:
-#             last_obs = obs[:,-self._obs_dim:]
-#         else:
-#             last_obs = obs[-self._obs_dim:]
-#         return last_obs
-#     
-#     def _process_traj(self, traj_obs, traj_act):
-#         if traj_obs.shape[0] <= self._fut + 3:
-#             return None
-#         else:
-#             data = psr_base.extract_timewins([traj_obs], [traj_act], self._fut, 1)[0]
-#             return self._fext_obs.process(data.obs), \
-#                 self._process_act(data.act), \
-#                 self._process_fut_act(data.fut_act), \
-#                 data.fut_obs
-#      
-#     @property
-#     def state_dimension(self):
-#         return self._state_dim + self._win_dim
-#     
-#     @property
-#     def extended_dimension(self):
-#         return self._win_dim
-#     
-#     @property
-#     def initial_state(self):
-#         #return np.concatenate([self._t_state0.get_value(), np.zeros(self._win_dim)])
-#         return self.t_initial_state.eval()
-#     
-#     @property
-#     def t_initial_state(self):
-#         #return theano.shared(name='initstate0',value=self.initial_state.astype(theano.config.floatX))
-#         return T.concatenate([self._t_state0, T.zeros(self._win_dim)],axis=0)
-#      
-#     def tf_update_state(self, t_state, t_ofeat, t_afeat):
-#         t_obswin = t_ofeat[-self._win_dim:]
-#         t_ofeat = dbg_print_shape('tf_upst::ofeat', t_ofeat)
-#         t_state = dbg_print_shape('tf_upst::state', t_state)
-#         t_state = super(Extended_RFFPSR_RNN,self).tf_update_state(t_state[:-self._win_dim], t_ofeat[:-self._win_dim], t_afeat)
-#         es = T.concatenate([t_state, t_obswin], axis=0)
-#         return es + sum(T.sum(p)*1e-30 for p in (self.params + self._params_proj)) 
-#      
-#     def tf_update_state_batch(self, t_state_mat, t_ofeat_mat, t_afeat_mat):
-#         t_obswin_mat = t_ofeat_mat[:,-self._win_dim:]
-#         t_state_mat = super(Extended_RFFPSR_RNN,self).tf_update_state_batch(t_state_mat[:,:-self._win_dim], t_ofeat_mat[:,:-self._win_dim], t_afeat_mat)
-#         es = T.concatenate([t_state_mat, t_obswin_mat], axis=1)
-#         return es
-#     
-#     def tf_compute_post_states(self, t_ofeat_mat, t_afeat_mat):
-#         # Use scan function
-#         state_0 = self.t_initial_state
-#         
-#         #t_ofeat_mat = dbg_print_shape('tofeatmat::post', t_ofeat_mat)
-#         
-#         #state_0 = dbg_print_shape('tf_post::s0', state_0)
-#         hs,_ = theano.scan(fn=lambda fo,fa,h: self.tf_update_state(h,fo,fa),
-#                            outputs_info=state_0,
-#                            sequences=[t_ofeat_mat,t_afeat_mat])
-#         return hs
-#      
-#     def tf_compute_pre_states(self, t_ofeat_mat, t_afeat_mat):
-#         state_0 = self.t_initial_state #initial_state
-#         #t_ofeat_mat = dbg_print_shape('tofeatmat', t_ofeat_mat)
-#         hs = self.tf_compute_post_states(t_ofeat_mat[:-1],t_afeat_mat[:-1])        
-#         return T.concatenate([T.reshape(state_0,(1,-1)), hs],axis=0)      
-#     
-#     #def tf_predict_obs(self, t_extstate, t_act):   
-#     #    if t_extstate.ndim==1:   
-#     #        t_state = t_extstate[:-self._win_dim]
-#     #    else:
-#     #        t_state = t_extstate[:,:-self._win_dim]
-#     #    return super(Extended_RFFPSR_RNN, self).tf_predict_obs(t_state, t_act)
-#            
-#     def _tf_predict_obs(self, t_extprestates_mat, t_act_mat):
-#         t_prestates_mat = t_extprestates_mat[:,:-self._win_dim]
-#         #t_prestates_mat = dbg_print_shape('_tpredobs', t_prestates_mat)
-#         return super(Extended_RFFPSR_RNN, self)._tf_predict_obs(t_prestates_mat, t_act_mat)           
-#     
-#     def tf_predict_guide(self, t_extprestates_mat, t_fa_mat):
-#         t_prestates_mat = t_extprestates_mat[:,:-self._win_dim]
-#         return super(Extended_RFFPSR_RNN, self).tf_predict_guide(t_prestates_mat, t_fa_mat)
-#    
-#    
-# class Masked_RFFPSR_RNN(Extended_RFFPSR_RNN):
-#     def __init__(self, *args, **kwargs):
-#         self.mask_idx = kwargs.pop('maskidx')
-#         super(Masked_RFFPSR_RNN,self).__init__(*args, **kwargs)
-#         mask = np.ones(self.state_dimension,dtype=float)
-#         mask[self.mask_idx]=0.0
-#         self._state_mask = theano.shared(name='state_mask', value = mask)
-#         
-#     def _t_mask_state(self, t_state):
-#         return self._state_mask*t_state
-#     
-#     @property
-#     def _t_initial_state(self):
-#         t_state0 = super(Masked_RFFPSR_RNN, self)._t_initial_state
-#         return  self._t_mask_state(t_state0)
-#      
-#     def tf_update_state(self, t_state, t_ofeat, t_afeat):
-#         es = super(Masked_RFFPSR_RNN, self).tf_update_state( t_state, t_ofeat, t_afeat)
-#         return self._t_mask_state(es)
-#      
-#     def tf_update_state_batch(self, t_state_mat, t_ofeat_mat, t_afeat_mat):
-#         es = super(Masked_RFFPSR_RNN, self).tf_update_state_batch( t_state_mat, t_ofeat_mat, t_afeat_mat)
-#         return self._t_mask_state(es)
 
-      
+class Extended_RFFPSR_RNN(RFFPSR_RNN):
+    def __init__(self, *args, **kwargs):
+        obs_dim = kwargs.pop('x_dim')
+        win = kwargs.pop('win')
+        super(Extended_RFFPSR_RNN, self).__init__(*args, **kwargs)
+        self._obs_dim = obs_dim
+        self._win = win
+        self._win_dim = self._obs_dim * self._win
 
-   
-    
-class RFFPSR_RNN_dbug(RFFPSR_RNN):
-    def __init__(self,*args,**kwargs):
-        RFFPSR_RNN.__init__(self,*args,**kwargs)
-        return
-    
-    def _init_params(self, traj_obs, traj_act):
-        RFFPSR_RNN._init_params(self, traj_obs, traj_act)
-        self._params_state = []
-        self._params_proj = []
-        self._params_obs = []
-        self._params_guide = []
-        return
-    
-    def tf_update_state(self, t_state, t_obs, t_act):
-        assert len(self._params_proj)==0, 'freeze projections for constant state'
-                             
-        ss = T.mean(self._t_UT_st, axis=1)
-        #ss = dbg_print('tstate',ss)
-       
-        #assert T.isnan(ss), embed()    
-        ss.name = 'tf_constant_state::Uss'
-        #ss = T.tanh(ss)                  
-        # Adding the sum of parameters fixes a Theano bug.
-        return ss + sum(T.sum(p)*1e-30 for p in (self.params + self._params_proj)) 
+    def _process_obs(self, obs):
+        if obs.ndim == 1:
+            obs = obs.reshape(1, -1)
+        last_obs = obs[:, -self._obs_dim:]
+        ofeat = self._fext_obs.process(last_obs)
+        assert not np.isnan(ofeat).any(), 'obsfeat is not nan'
+        assert not np.isinf(ofeat).any(), 'obsfeat is not inf'
+        new_obs = np.concatenate([ofeat.T, obs.T], axis=0).T
+        return new_obs
 
-    
-        
-            
+    def tf_extract_obs(self, obs):
+        if obs.ndim == 2:
+            last_obs = obs[:, -self._obs_dim:]
+        else:
+            last_obs = obs[-self._obs_dim:]
+        return last_obs
+
+    def _process_traj(self, traj_obs, traj_act):
+        if traj_obs.shape[0] <= self._fut + 3:
+            return None
+        else:
+            data = psr_base.extract_timewins([traj_obs], [traj_act], self._fut, 1)[0]
+            return self._fext_obs.process(data.obs), \
+                   self._process_act(data.act), \
+                   self._process_fut_act(data.fut_act), \
+                   data.fut_obs
+
+    @property
+    def state_dimension(self):
+        return self._state_dim + self._win_dim
+
+    @property
+    def extended_dimension(self):
+        return self._win_dim
+
+    @property
+    def initial_state(self):
+        # return np.concatenate([self._t_state0.get_value(), np.zeros(self._win_dim)])
+        return self.t_initial_state.eval()
+
+    @property
+    def t_initial_state(self):
+        # return theano.shared(name='initstate0',value=self.initial_state.astype(theano.config.floatX))
+        return T.concatenate([self._t_state0, T.zeros(self._win_dim)], axis=0)
+
+    def tf_update_state(self, t_state, t_ofeat, t_afeat):
+        t_obswin = t_ofeat[-self._win_dim:]
+        t_state = super(Extended_RFFPSR_RNN, self).tf_update_state(t_state[:-self._win_dim], t_ofeat[:-self._win_dim],
+                                                                   t_afeat)
+        es = T.concatenate([t_state, t_obswin], axis=0)
+        return es + sum(T.sum(p) * 1e-30 for p in (self.params + self._params_proj))
+
+    def tf_update_state_batch(self, t_state_mat, t_ofeat_mat, t_afeat_mat):
+        t_obswin_mat = t_ofeat_mat[:, -self._win_dim:]
+        t_state_mat = super(Extended_RFFPSR_RNN, self).tf_update_state_batch(t_state_mat[:, :-self._win_dim],
+                                                                             t_ofeat_mat[:, :-self._win_dim],
+                                                                             t_afeat_mat)
+        es = T.concatenate([t_state_mat, t_obswin_mat], axis=1)
+        return es
+
+    def tf_compute_post_states(self, t_ofeat_mat, t_afeat_mat):
+        # Use scan function
+        state_0 = self.t_initial_state
+        hs, _ = theano.scan(fn=lambda fo, fa, h: self.tf_update_state(h, fo, fa),
+                            outputs_info=state_0,
+                            sequences=[t_ofeat_mat, t_afeat_mat])
+        return hs
+
+    def tf_compute_pre_states(self, t_ofeat_mat, t_afeat_mat):
+        state_0 = self.t_initial_state  # initial_state
+        hs = self.tf_compute_post_states(t_ofeat_mat[:-1], t_afeat_mat[:-1])
+        return T.concatenate([T.reshape(state_0, (1, -1)), hs], axis=0)
+
+    def _tf_predict_obs(self, t_extprestates_mat, t_act_mat):
+        t_prestates_mat = t_extprestates_mat[:, :-self._win_dim]
+        return super(Extended_RFFPSR_RNN, self)._tf_predict_obs(t_prestates_mat, t_act_mat)
+
+    def tf_predict_guide(self, t_extprestates_mat, t_fa_mat):
+        t_prestates_mat = t_extprestates_mat[:, :-self._win_dim]
+        return super(Extended_RFFPSR_RNN, self).tf_predict_guide(t_prestates_mat, t_fa_mat)

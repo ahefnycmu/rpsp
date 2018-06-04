@@ -11,12 +11,10 @@ import theano
 import theano.tensor as T
 from theano.compile.nanguardmode import NanGuardMode
 from time import time
-from psr_lite.psr_lite.utils.nn import dbg_nn_assert_notnan, tf_get_normalized_grad_per_param,get_grad_update_old, dbg_print_stats
-from psr_lite.nn_diags import PredictionError
+from psr_lite.psr_lite.utils.nn import dbg_nn_assert_notnan, tf_get_normalized_grad_per_param
 
 def _np2theano(name, np_arr):
-    fn = [T.vector, T.matrix, T.tensor3][np_arr.ndim-1]        
-    #return T.specify_shape(fn(name, dtype=np_arr.dtype), np_arr.shape)    
+    fn = [T.vector, T.matrix, T.tensor3][np_arr.ndim-1]
     return fn(name, dtype=np_arr.dtype)
 
 '''
@@ -59,14 +57,9 @@ def _t_Hvec(f, y, p):
     to partitions of H(x) y.
     '''            
     
-    g = T.grad(f, wrt=p, disconnected_inputs='ignore')    
-    g = [dbg_print_stats('ng'+p[j].name,gg) for j,gg in enumerate(g)]
-    y = [dbg_print_stats( 'ny'+str(j), yi) for j,yi in enumerate(y)]
+    g = T.grad(f, wrt=p, disconnected_inputs='ignore')
     gy = T.sum([T.sum(gi * yi) for (gi,yi) in zip(g,y)])
-    gy = dbg_print_stats( 'gy',gy) 
     h = T.grad(gy, wrt=p, disconnected_inputs='ignore')
-    
-    h = [dbg_print_stats( 'nh'+p[j].name,hh) for j,hh in enumerate(h)]
     return h
              
 def _Hvec_FD(g, inputs, y, p):            
@@ -132,9 +125,9 @@ def _arrlist_cg_solve(fA, b, iter=10):
         
         Ap = fA(p)        
         alpha = r2old / _arrlist_dot(p, Ap) 
-        _arrlist_addin(x,p,alpha)
-        _arrlist_addin(r,Ap,-alpha)       
-        r2new = _arrlist_dot(r,r)
+        _arrlist_addin(x, p, alpha)
+        _arrlist_addin(r, Ap, -alpha)
+        r2new = _arrlist_dot(r, r)
         p = _arrlist_add(r, p, 1.0, (r2new/r2old))        
     
     return x, r
@@ -198,20 +191,20 @@ class DefaultConstraintOptimizerOps(ConstrainedOptimizerOps):
         print 'Building cost grad function ... ',
         s = time()
         if self._normalize:
-            if isinstance(t_cost,list):
-                print 'Normalizing combined TRPO gradients'
-                res = get_grad_update_old(-t_cost[0],-t_cost[1], params)
-                t_cost = -res['total_cost']
-                updates = res['updates']
-                _t_cost_grad = res['grads']
-            else:
-                print 'Normalizing single TRPO gradients'
-                _t_cost_grad, weight, updates = tf_get_normalized_grad_per_param(-t_cost, params)
-                t_cost = weight*t_cost
+            # if isinstance(t_cost,list):
+            #     print 'Normalizing combined TRPO gradients'
+            #     res = get_grad_update_old(-t_cost[0],-t_cost[1], params)
+            #     t_cost = -res['total_cost']
+            #     updates = res['updates']
+            #     _t_cost_grad = res['grads']
+            # else:
+            print 'Normalizing single TRPO gradients'
+            _t_cost_grad, weight, updates = tf_get_normalized_grad_per_param(-t_cost, params)
+            t_cost = weight*t_cost
         else:
-            if isinstance(t_cost,list):
-                print 'Summing cost into combined'
-                t_cost = T.sum(t_cost)
+            # if isinstance(t_cost,list):
+            #     print 'Summing cost into combined'
+            #     t_cost = T.sum(t_cost)
             if len(clip_bounds)==2 and clip_bounds[1]<>0.0:
                 t_cost = theano.gradient.grad_clip(t_cost,clip_bounds[0],clip_bounds[1])
             _t_cost_grad = T.grad(-t_cost, wrt=params)    
@@ -252,7 +245,7 @@ class DefaultConstraintOptimizerOps(ConstrainedOptimizerOps):
             assert hvec == 'fd'
             print 'Using finite difference Hvec'
             t_g = T.grad(t_constraint, wrt=params)    
-            t_g = [dbg_nn_assert_notnan(gg, 'ng') for gg in t_g]
+            #t_g = [dbg_nn_assert_notnan(gg, 'ng') for gg in t_g]
             
             g = theano.function(inputs=t_constraint_inputs, outputs=t_g, on_unused_input='ignore')            
             self.constraint_Hx = lambda inputs,new_params : [hvi+reg*vi for hvi,vi in zip(_Hvec_FD(g, inputs=inputs, y=new_params, p=params), new_params)]
@@ -301,7 +294,6 @@ class GaussianFisherConstraintOptimizerOps(ConstrainedOptimizerOps):
         M = T.tile(T.eye(2), (mu.shape[0], 1, 1))        
         Jx = Jx.reshape((Jx.shape[0],Jx.shape[1],1))
         Jx = T.tile(Jx, (1,1,Jx.shape[1]))
-        #MJx = T.sum(M * Jx, axis=-1)        
         MJx = Jx
         JMJx = [T.Lop(MJx, p, x, disconnected_inputs='ignore') for (p,x) in zip(params,t_new_params)]   
         Hx = [h + reg*p for (h,p) in zip(JMJx,t_new_params)]
@@ -443,12 +435,10 @@ class ConstrainedOptimizer:
                             
     def _get_direction(self, inputs, g):                                    
         Ax = lambda x: self._ops.constraint_Hx(inputs,x)
-        #Ax = dbg_print_stats('Ax', Ax)
-        #g = dbg_print_stats('g', g)
         gd = _arrlist_cg_solve(Ax, g, self._cg_iterations)
         #gd = _arrlist_lsq_solve(Ax, g, self._cg_iterations)
         
-        return gd #solution , residual
+        return gd
         
     def optimize(self, cost_inputs, constraint_inputs):         
         cost, g = self._ops.cost_grad(*cost_inputs)  
@@ -464,7 +454,6 @@ class ConstrainedOptimizer:
         if np.isnan(max_step):
             if self._verbose: print 'NaN max_step .. using 1.0'
             max_step = 1.0
-            #raise PredictionError(3)
         min_step = 1e-5
         
         rate = 0.8
@@ -474,8 +463,7 @@ class ConstrainedOptimizer:
         
         while(alpha > min_step):
             for (p,c,ss) in zip(self._params, current_params, s):
-                p.set_value(c + max_step * alpha * ss) 
-                #print max_step*alpha
+                p.set_value(c + max_step * alpha * ss)
             new_cnstr = self._ops.constraint(*constraint_inputs)
             new_cost = self._ops.cost(*cost_inputs)
             check_all = self._ops.checks(*cost_inputs)

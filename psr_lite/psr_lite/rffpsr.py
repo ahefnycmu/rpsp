@@ -2,7 +2,7 @@
 '''
 Created on Tue Dec 20 19:48:50 2016
 
-@author: ahefny
+@author: ahefny, zmarinho
 '''
 
 from __future__ import print_function
@@ -22,8 +22,6 @@ from utils.regression import ridge
 from time import time
 from psr_base import ControlledModel, UncontrolledModel, extract_timewins, structtype
 from collections import defaultdict
-
-from IPython import embed
 
         
 def uniform_lambda(val):
@@ -354,42 +352,28 @@ class RFFPSR(ControlledModel):
         feats.exfut_obs = ula.khatri_rao_rowwise(feats.shfut_obs, feats.obs)
         feats.exfut_act = ula.khatri_rao_rowwise(feats.act, feats.shfut_act)  
                         
-        if self._dbg_preset_U_efo is None:
-            self._U_efo,_,exfut_obs = ula.rand_svd_f(feats.exfut_obs.T, k=self._p, rng=self.rng)
-            feats.exfut_obs, self._U_efo = self._keep_proj_sign(self._U_efo, 'UU_efo', feats.exfut_obs, exfut_obs, U_old) 
-        else:
-            self._U_efo = self._dbg_preset_U_efo
-            feats.exfut_obs = np.dot(feats.exfut_obs, self._U_efo)
-            
-        if self._dbg_preset_U_efa is None:
-            self._U_efa,_,exfut_act = ula.rand_svd_f(feats.exfut_act.T, k=self._p, rng=self.rng)
-            feats.exfut_act, self._U_efa = self._keep_proj_sign(self._U_efa, 'UU_efa', feats.exfut_act, exfut_act, U_old) 
-        else:
-            self._U_efa = self._dbg_preset_U_efa
-            feats.exfut_act = np.dot(feats.exfut_act, self._U_efa)
+        self._U_efo, _, exfut_obs = ula.rand_svd_f(feats.exfut_obs.T, k=self._p, rng=self.rng)
+        feats.exfut_obs = exfut_obs.T
+
+        self._U_efa, _, exfut_act = ula.rand_svd_f(feats.exfut_act.T, k=self._p, rng=self.rng)
+        feats.exfut_act = exfut_act.T
         
         # Observation Covariance
         feats.oo = ula.khatri_rao_rowwise(feats.obs, feats.obs)        
-        
-        if self._dbg_preset_U_oo is None:                        
-            # Project lower triangle part of observation covariance            
-            d_obs = feats.obs.shape[1]
-            lt_idx = np.array([i for i in xrange(d_obs**2) if (i//d_obs) >= (i%d_obs)])
-            ut_idx = (lt_idx%d_obs)*d_obs + lt_idx//d_obs
 
-            feats.oo = feats.oo[:,lt_idx]            
-            self._U_oo,_,oo = ula.rand_svd_f(feats.oo.T, k=self._p, rng=self.rng)
-            feats.oo, self._U_oo = self._keep_proj_sign(self._U_oo, 'U_oo', feats.oo, oo, U_old) 
-            # Convert singular vectors back to represent symmetric matrices
-            Usym = np.empty((d_obs**2, self._U_oo.shape[1]))
-            Usym[lt_idx,:] = self._U_oo
-            Usym[ut_idx,:] = self._U_oo
-            self._U_oo = Usym
-            
-            
-        else:
-            self._U_oo = self._dbg_preset_U_oo
-            feats.oo = np.dot(feats.oo, self._U_oo)                
+        # Project lower triangle part of observation covariance
+        d_obs = feats.obs.shape[1]
+        lt_idx = np.array([i for i in xrange(d_obs**2) if (i//d_obs) >= (i%d_obs)])
+        ut_idx = (lt_idx%d_obs)*d_obs + lt_idx//d_obs
+
+        feats.oo = feats.oo[:,lt_idx]
+        self._U_oo,_,oo = ula.rand_svd_f(feats.oo.T, k=self._p, rng=self.rng)
+        feats.oo = oo.T
+        # Convert singular vectors back to represent symmetric matrices
+        Usym = np.empty((d_obs**2, self._U_oo.shape[1]))
+        Usym[lt_idx,:] = self._U_oo
+        Usym[ut_idx,:] = self._U_oo
+        self._U_oo = Usym
                             
         K = structtype()
         K.obs = feats.obs.shape[1]        
@@ -407,18 +391,9 @@ class RFFPSR(ControlledModel):
             print('%s:%d' % (k,v))
                     
         return feats
-     
+
     def _keep_proj_sign(self, Unew, k, feats, ufx, U_old):
-        if U_old is not None:
-            dmin = min([Unew.shape[0],U_old[k].shape[0]])
-            signs =  np.diag(np.dot(Unew[:dmin,:].T, U_old[k][:dmin,:]))
-            dout = signs.shape[0]
-            Unew[:,:dout] = Unew[:,:dout] * signs
-            new_feats = np.dot(feats, Unew)
-            #print ('UTU_%s'%k, np.dot(Unew[:dmin,:].T,  U_old[k][:dmin,:]) )
-            assert (np.diag(np.dot(Unew[:dmin,:].T,  U_old[k][:dmin,:]))>=0).all(), 'flipped sign %s'%k
-        else:
-            new_feats = ufx.T
+        new_feats = ufx.T
         return new_feats, Unew
     
     def get_projs(self):
@@ -491,7 +466,6 @@ class RFFPSR(ControlledModel):
         for i in xrange(N):
             C_ab = est_reg_out[i,:dab].reshape((da,db))
             C_bb = est_reg_out[i,dab:].reshape((db,db))
-            #C_a_b = self._solve(C_bb,C_ab,div_lambda)
             C_a_b = ula.reg_rdivide_nopsd(C_ab, C_bb, div_lambda)
             output[i,:] = C_a_b.reshape(-1)
                 
@@ -499,19 +473,13 @@ class RFFPSR(ControlledModel):
       
     def _s2_regression(self, states, ex_states, im_states, U_old):                
         print('State Projection')
-        if self._dbg_preset_U_st is None:
-            self._U_st,_,states_fx = ula.rand_svd_f(states.T, k=self._p, rng=self.rng)                      
-            states, self._U_st = self._keep_proj_sign(self._U_st, 'U_st', states, states_fx, U_old) 
-        else:
-            self._U_st = self._dbg_preset_U_st
-            states = np.dot(states, self._U_st)
-            
+        self._U_st, _, states_fx = ula.rand_svd_f(states.T, k=self._p, rng=self.rng)
+        states = states_fx.T
         self._feat_dim.state = states.shape[1]
-
         print('Stage 2 Regression')
         self._W_s2ex = ridge(states, ex_states, self._lambda['s2ex'])
         self._W_s2oo = ridge(states, im_states, self._lambda['s2oo'])
-        
+
         return states
                             
     def _s1_regression_joint(self, data, feats, imp_weights):        
@@ -533,7 +501,6 @@ class RFFPSR(ControlledModel):
         s1a_in = ula.khatri_rao_rowwise(feats.past, feats.fut_act)
         s1a_out = feats.fut_obs
         W_s1a = ridge(s1a_in, s1a_out, self._lambda['s1a'], imp_weights[0])
-        #W_s1a = W_s1a.reshape((self._feat_dim.past, -1))
         W_s1a = W_s1a.reshape((self._feat_dim.past, self._feat_dim.fut_act, self._feat_dim.fut_obs))
         W_s1a = W_s1a.transpose((0,2,1))
         W_s1a = W_s1a.reshape((self._feat_dim.past,-1))                
@@ -544,7 +511,6 @@ class RFFPSR(ControlledModel):
         s1b_in = ula.khatri_rao_rowwise(feats.past, feats.exfut_act)
         s1b_out = feats.exfut_obs
         W_s1b = ridge(s1b_in, s1b_out, self._lambda['s1b'], imp_weights[1])
-        #W_s1b = W_s1b.reshape((self._feat_dim.past, -1))
         W_s1b = W_s1b.reshape((self._feat_dim.past, self._feat_dim.exfut_act, self._feat_dim.exfut_obs))
         W_s1b = W_s1b.transpose((0,2,1))
         W_s1b = W_s1b.reshape((self._feat_dim.past,-1))                
@@ -555,7 +521,6 @@ class RFFPSR(ControlledModel):
         s1c_in = ula.khatri_rao_rowwise(feats.past, feats.act)
         s1c_out = feats.oo
         W_s1c = ridge(s1c_in, s1c_out, self._lambda['s1c'], None)
-        #W_s1c = W_s1c.reshape((self._feat_dim.past, -1))
         W_s1c = W_s1c.reshape((self._feat_dim.past, self._feat_dim.act, self._feat_dim.oo))
         W_s1c = W_s1c.transpose((0,2,1))
         W_s1c = W_s1c.reshape((self._feat_dim.past,-1))
@@ -688,8 +653,7 @@ class RFFPSR(ControlledModel):
                         diff *= pv_h                                                                                                
                         g[:,k] += counts[i,j,k] * diff
 
-            return g.ravel(order='F')                                     
-            #return opt.numerical_jacobian(W,obj,1e-8).ravel()
+            return g.ravel(order='F')
             
         def obj(W):
             W = W.reshape((-1,d_h),order='F')

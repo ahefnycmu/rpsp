@@ -11,8 +11,7 @@ import argparse
 import numpy as np
 from distutils.dir_util import mkpath
 import json
-from IPython import embed
-from stats_test import run_Nmodel, run_model
+from stats_test import run_Nmodel
 
 from psr_lite.psr_lite.utils.log import Logger
 
@@ -57,9 +56,7 @@ def get_parser():
     add_boolean_option(parser, 'normalize_act', default=True, help='Scale actions within bounds [True]')
     add_boolean_option(parser, 'normalize_obs', default=False, help='Scale obs mean avg')
     add_boolean_option(parser, 'normalize_rwd', default=False, help='Scale rwds mean avg')
-    add_boolean_option(parser, 'use_rllab', default=False, help='Use rllab environment')
-    parser.add_argument('--critic', type=str, required=False, help='Replace the reward by a value function model')
-    
+
     # Model Options
     parser.add_argument('--method', type=str, required=False, help='function to call.')
     parser.add_argument('--nh', nargs='+', type=int, default=[16],  help='number of hidden units. --nh L1 L2 ... number of hidden units for each layer')
@@ -128,8 +125,8 @@ def get_parser():
     parser.add_argument('--repeat', type=int, default=1, help='number of times run each model to get stats results')    
     add_boolean_option(parser, 'saved_policy', default=False, help=' use a good initial policy [False]')
     add_boolean_option(parser, 'h0', default=True, help=' Optimize intial predictive state [False]')
-    #parser.add_argument('--Uopt', type=bool, default=False, help=' Optimize projections [False]')    
-    parser.add_argument('--init_policy', type=str,default='None', help=' use a good initial policy [default:None; OU,gauss]')            
+    #parser.add_argument('--Uopt', type=bool, default=False, help=' Optimize projections [False]')
+    parser.add_argument('--init_policy', type=str,default='None', help=' use a good initial policy [default:None; OU,gauss]')       #TODO:remove
     parser.add_argument('--pi_exp', type=str, default='None', help='exploration strategy [OU, gauss, None]')            
     parser.add_argument('--seed', type=int, default=0, help='experiment seed [0: default]')    
     parser.add_argument('--b', type=str, default='psr', help='type of baseline for PSR network [psr:default, obs,AR, none]')   
@@ -204,36 +201,10 @@ if __name__ == '__main__':
     globalconfig.vars.args = args
     psr_lite.globalconfig.vars.args = args
    
-    
-#     functions={ 'gym_pred': test_rffpsr_planning.test_continuous_prediction,
-#                 'gym_sim': test_rffpsr_planning.test_simulated_prediction,
-#                 'gym_model': test_gym.test_continuous_model,
-#                 'wave': test_rffpsr_planning.test_DS,
-#                 'ode': test_rffpsr_planning.test_DS,
-#                 'circulant': test_rffpsr_planning.test_DS,
-#                 'lite-cont': test_policy_continuous,
-#                 'lite-obs': test_policy_continuous,
-#                 'obsVR': test_policy_continuous,
-#                 'arVR':  test_policy_continuous,
-#                 'obsVRdiscrete': test_policy_discrete,
-#                }
-#     import logging
-#     logging.basicConfig(level=logging.DEBUG)
-#     logger = logging.getLogger(__name__)
-#     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#     fh = logging.FileHandler(test_file+'log.log')
-#     fh.setLevel(logging.DEBUG)
-#     fh.setFormatter(formatter)
-#     logger.addHandler(fh)
-#     setattr(args, 'logger', logger)
-#     logger.debug('Dumping results to:\n%s',test_file)
+
     if args.logfile is not None:
         Logger.instance().set_file(args.logfile)
-    if args.repeat==1:
-        args.trial = args.seed
-        run_model(args, test_file, args.trial, loadfile=args.loadfile) 
-    else:
-        run_Nmodel(args, test_file, N=args.repeat, loadfile=args.loadfile)    
+    run_Nmodel(args, test_file, N=args.repeat, loadfile=args.loadfile)
     Logger.instance().stop()
     
     

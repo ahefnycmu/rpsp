@@ -3,16 +3,11 @@
 """
 Created on Fri Feb 17 12:38:44 2017
 
-@author: ahefny
+@author: ahefny, zmarinho
 """
 
-import numpy as np
-import theano
-import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
-import theano.tensor.slinalg
-from theano.tensor.nlinalg import matrix_inverse
-from IPython import embed
+
 '''
 decorator of noisy_model.
 '''   

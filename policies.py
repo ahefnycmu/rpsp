@@ -49,37 +49,7 @@ class RandomGaussianPolicy(BasePolicy):
     def sample_action(self, state):
         action = self.rng.randn(self.num_actions)
         return action, np.prod(scipy.stats.norm.pdf(action)), {}        
-          
 
-class OUPolicy(BasePolicy):
-    ''' implements a Ornstein Uhlenbeck process for exploration'''
-    def __init__(self, num_actions, mu=0, theta=0.15, sigma=0.3, rng=None, policy=None):
-        self.num_actions = num_actions
-        self.rng = rng
-        self.mu = mu
-        self.theta = theta 
-        self.sigma = sigma
-        self._base_policy = RandomGaussianPolicy(num_actions,rng) if policy is None else policy     
-        self.reset() 
-        
-    def reset(self):
-        self.state = np.ones(self.num_actions) * self.mu
-
-    def evolve_state(self, state):
-        x = np.copy(self.state)
-        dx = self.theta * (self.mu - x) + self.sigma * self.rng.randn(len(x))
-        self.state = x + dx
-        return state
-
-    def sample_action(self, state):
-        action, pa, info = self._base_policy.get_action(state)
-        ou_state = self.evolve_state()
-        return action + ou_state, pa, info
-    
-
- 
-          
-            
 class UniformContinuousPolicy(BasePolicy):
     def __init__(self, low, high, rng=None):
         self._low = low

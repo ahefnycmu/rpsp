@@ -1,13 +1,11 @@
 """
 Created on Mon Nov 28 10:10:43 2016
 
-@author: ahefny
+@author: ahefny, zmarinho
 """
 
-import gym
 import numpy as np
 import math
-from models import Trajectory
 from IPython import embed
 
 class Simulator(object): 
@@ -61,12 +59,10 @@ class PredictedSimulator(Simulator):
 class CartpoleContinuousSimulator(Simulator):  
     def reset(self, env):
         Simulator.reset(self, env)
-        #env.state = np.asarray(env.state)*0.0
         return Simulator.reset(self, env)
     
     
     def simulate(self, force, env):               
-        #assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action)
         state = env.state
         try:
             x, x_dot, theta, theta_dot = env.state
@@ -182,7 +178,6 @@ class PendulumContinuousSimulator(Simulator):
         l = 1.
         dt = env.dt
         env.scale_action = 100.0
-        #u = u /float(env.scale_action)# env.max_torque
         u = np.clip(u, -env.max_torque, env.max_torque)[0]
         
         env.last_u = u # for rendering

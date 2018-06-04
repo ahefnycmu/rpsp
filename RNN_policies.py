@@ -52,12 +52,6 @@ class RNN_Discrete_Policy(RNN_Policy):
                                     outputs=self._t_prob, allow_input_downcast=True);
         self.reset();
 
-        #X = T.matrix();
-        #U = T.ivector();
-        #pp = self._t_compute_prob(X,U);
-        #self._test_prob = theano.function(inputs = [X, U],
-        #            outputs=pp, allow_input_downcast=True);
-
     def reset(self):
         self.mem = self.h0.get_value();
         return self.mem;
@@ -84,9 +78,7 @@ class RNN_Discrete_Policy(RNN_Policy):
             prob = self._compute_prob(state, self.mem); #based on the current mem and this new state, predict prob.
         except Exception:
             embed() 
-        if math.isnan(prob[0]): 
-            #print "Nan appears in the computed prob...."
-            #if nan appears, just make the prob uniform:
+        if math.isnan(prob[0]):
             prob = np.ones(prob.shape[0]) / (prob.shape[0]*1.); 
         self.update_mem(x = state); #update the mem to include the new state. 
         xk = np.arange(self.output_dim);
@@ -97,8 +89,6 @@ class RNN_Discrete_Policy(RNN_Policy):
         else:
             return action;
 
-
-#TO DO: implement the continuous version. 
 
 
 if __name__ == '__main__':
