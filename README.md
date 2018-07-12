@@ -14,11 +14,11 @@
 
 ## Testing
 
-<p> To Run pre-specified test files. You can tune any of the parameters in rpsp.run.call_test.</p>
+<p> To run the code, use the following command: </p>
 
-<pre><code>python run/call_test.py --config <parameter_file> --other_key_args</code></pre>
+<pre><code>python run/call_test.py [--config <parameter_file>] [--other_key_args]</code></pre>. 
 
-<p> For example for CatrPole-v1 with alternating optimization and storing results in 'results' folder:</p>
+<p> A parameter_file stores command line arguments. Sample parameter files are located in test folder. You can override some of the parameters by using the appropriate commandline arguments AFTER specifying the parameter_file. For example, this command uses the settings in tests/CartPole-v1/Alt+obs/params (alternating optimization) but uses CatrPole-v0 environment and stores results in 'results' folder:</p>
 <pre><code>python run/call_test.py --config 'tests/CartPole-v1/Alt+obs/params' --env CartPole-v0 --tfile results</code></pre>
 
 <p> Check available environments in (envs.load_environments). For example: Swimmer-v0 runs a continuous simulator while Swimmer-v1 runs with the Mujoco simulator.
