@@ -5,7 +5,7 @@ This is Python 2.7 code for the paper <a href='https://arxiv.org/pdf/1803.01489.
 ## Instalation
 
 <p> Install the package: </p>
-<pre><code>python setup install</code></pre>
+<pre><code>python setup.py install</code></pre>
 
 <p> Make sure you have the package installed.
  Open a python terminal and import the package: </p>
