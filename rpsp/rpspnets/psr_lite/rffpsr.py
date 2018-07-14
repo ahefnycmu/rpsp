@@ -102,8 +102,6 @@ class RFFPSR(ControlledModel):
             self._s1_regression = s1_methods[s1_method]
         else:
             self._s1_method = s1_method
-
-        #self._solve = lambda A,b: eval_CG(np.abs(cond_iter))(A,b)
             
         solve_dict = defaultdict(lambda: self.solve_inverse_nopsd, {'kbrcg': self.solve_inv_cg, 'kbrMIA': self.solve_inv_mia, 'I': self.solve_ignore})    
         self._solve = solve_dict[self._psr_cond]

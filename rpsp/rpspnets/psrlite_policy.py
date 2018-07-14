@@ -59,11 +59,6 @@ class PSRLitePolicy(BasePolicy):
         assert not np.isinf(p).any(), 'param is inf rffpsr policy'
         self._psrnet.set_params(p[:n])
         self._policy.set_params(p[n:])
-        
-    #def _t_compute_states(self, Xf, Uf):
-    #   TODO: Do we really need post states
-    #    assert False
-    #    return self._psrnet.tf_compute_post_states(Xf, Uf)
     
     # NOTE: This function recieves prestates
     def _t_compute_gaussian(self, H):

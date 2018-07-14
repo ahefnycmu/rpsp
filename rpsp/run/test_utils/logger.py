@@ -1,13 +1,15 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 """
 Created on Fri Feb 17 12:38:44 2017
 @author: ahefny, zmarinho
 """
 import numpy as np
 
+import rpsp.globalconfig as globalconfig
 from rpsp.run.test_utils.plot import call_plot, save_model
-
 
 class Log(object):
     def __init__(self, args, filename, n=3, pred_model=None):
@@ -19,6 +21,12 @@ class Log(object):
         self.avg_traj = []
         self._results = {'act': [], 'rewards': [], 'rwd': [], 'obs': [],
                          'mse': [], 'exp': filename, 'rng': [], 'env_states': []}
+        self.msg=[]
+
+    def log(self, msg):
+        if globalconfig.vars.args.verbose:
+            self.msg.extend(' '.join(msg))
+
 
     def logger(self, i, trajs, res, track_delta=False):
         # Output stats
@@ -51,7 +59,7 @@ class Log(object):
                 for k, t in enumerate(trajs):
                     avg[k, :t.obs.shape[0], :] = t.obs / float(t.obs.shape[0])
                 self.avg_traj.append(np.sum(avg, axis=0))
-                print('\t\tdelta_batch_avg:{} delta_prev_avg:{}'.format(
+                self.log('\t\tdelta_batch_avg:{} delta_prev_avg:{}'.format(
                     np.linalg.norm(np.mean([(t.obs - self.avg_traj[-1][:t.obs.shape[0]]) ** 2], axis=0)),
                     np.linalg.norm(np.mean([(t.obs - 0.0
                                              if len(self.avg_traj) < 2
@@ -68,9 +76,10 @@ class Log(object):
                               m, s, False, label_2='vel')
                 tpred = self._pred_model.traj_predict_1s(trajs[0].states, trajs[0].act)
                 self._pp.plot_traj(trajs[0], tpred)
-        print 'reg:{} psr_step:{} rwd_w:{} past:{} fut:{}'.format(self._args.reg, self._args.grad_step, self._args.wrwd,
-                                                                  self._args.past, self._args.fut)
-        print '\t\t\t\t\t\t' + '\t\t\t\t\t\t'.join(['{}={}\n'.format(k, res.get(k, 0.0)) for k in res.keys()])
+
+        self.log('reg:{} psr_step:{} rwd_w:{} past:{} fut:{}'.format(self._args.reg, self._args.grad_step, self._args.wrwd,
+                                                              self._args.past, self._args.fut))
+        self.log('\t\t\t\t\t\t' + '\t\t\t\t\t\t'.join(['{}={}\n'.format(k, res.get(k, 0.0)) for k in res.keys()]))
         self._results['rewards'].append([np.sum(t.rewards) for t in trajs])
 
         if (i % 50 == 0):

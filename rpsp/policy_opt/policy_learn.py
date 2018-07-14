@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 """
 Created on Mon Nov 28 09:48:17 2016
 
@@ -39,19 +41,19 @@ def learn_policy(policy_updater, model, environment, num_trajs=0, num_samples=0,
         trajs = environment.run(model, policy_updater.policy, max_traj_len,
                                 num_trajs=num_trajs, min_traj_length=min_traj_length,
                                 num_samples=num_samples)
-        print 'iter=', i
-        print 'Using %d trajectories with %d total samples' % (len(trajs), sum(t.length for t in trajs))
-        print 'update model'
+        print('iter=', i)
+        print('Using %d trajectories with %d total samples' % (len(trajs), sum(t.length for t in trajs)))
+        print('update model')
         tic = time.time()
         res = policy_updater.update(trajs)
-        print 'done update model', time.time() - tic
+        print('done update model', time.time() - tic)
 
         m = np.mean([np.sum(t.rewards) for t in trajs])
         s = np.std([np.sum(t.rewards) for t in trajs])
         if m > best_avg:
             best_avg = m
-        print "iteration {}, avg rwd={:3.4f} (std={:3.4f}, best={:3.4f})".format(i, m, s, best_avg)
+        print("iteration {}, avg rwd={:3.4f} (std={:3.4f}, best={:3.4f})".format(i, m, s, best_avg))
 
         if logger is not None:
             logger(i, trajs, res)
-    print 'TOTAL LEARNING TIME: ', time.time() - tic_all
+    print('TOTAL LEARNING TIME: ', time.time() - tic_all)

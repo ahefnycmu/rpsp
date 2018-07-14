@@ -811,7 +811,7 @@ def minimize_theano_fn(output_tf, input_vars, params,
     print('max_iterations, ', max_iterations)
     step = initial_step
     while it < max_iterations:
-        print('iter minimize_theano_fn ', it)
+        #print('iter minimize_theano_fn ', it)
         for i in xrange(num_samples):
             inputs = sampler(i)
             optimizer.step(inputs, step)

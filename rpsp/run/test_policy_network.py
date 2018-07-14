@@ -26,7 +26,6 @@ import rpsp.rpspnets.psr_lite.rnn_filter as rnn_filter
 import rpsp.rpspnets.psrlite_policy as psrlite_policy
 from rpsp.envs.load_environments import load_environment
 from rpsp.explore.gaussian_strategy import GaussianStrategy
-from rpsp.filters import models
 from rpsp.filters.models import ObservableModel, FiniteHistoryModel
 from rpsp.policy import policies
 from rpsp.policy.NN_policies import ContinuousExplorationPolicy, ContinuousPolicy
@@ -140,19 +139,6 @@ def rpsp_filter(args, data=[], **kwargs):
         filter._load(args.params['policy']['psrnet'])
     filter.train(*data, on_unused_input='raise')
     return model, filter
-
-
-# def rff_obs_model(args, data=[], **kwargs):
-#     X_obs, X_act = data
-#     x_dim = X_obs[0].shape[1]
-#     feat_set = feat_extractor.create_RFFPCA_featureset(args.Hdim, args.dim, pw=args.kw, rng=args.rng)
-#     model = ObservableModel(obs_dim=args.dim);
-#
-#     filter = rnn_filter.RFFobs_RNN(model, fset=feat_set, opt_U=args.wpca, opt_V=args.wrff,
-#                                                        dim=args.dim)
-#     filter.extract_feats(X_obs, X_act)
-#     filter.train(X_obs, X_act, on_unused_input='ignore')
-#     return model, filter
 
 
 def obs_model(args, data=[], **kwargs):

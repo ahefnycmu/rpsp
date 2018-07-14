@@ -173,10 +173,10 @@ def get_parser():
     add_boolean_option(parser, 'dbg_nobatchpsr', false_name='dbg_batchpsr', default=True, help='Do not use batched PSR updates')
     add_boolean_option(parser, 'mask_state', default=False, help='set predictive states to 0.[Default:False]')    
     parser.add_argument('--dbg_reward', default=0.0, type=float, help='Control cost for Envwrapper for reward shapping. [Default:0.0 same as default openAI] ')
-    parser.add_argument('--powerg', default=2., type=float, help='Control cost for Envwrsquash gradietn to -1,1.[Default:False]')    
+    parser.add_argument('--powerg', default=2., type=float, help='Control cost for Envwrsquash gradietn to -1,1.[Default:False]')
+    add_boolean_option(parser, 'verbose', default=False, help='Print additional logging info.[Default:False]')
 
-    
-    # Start with exploration trajectories 
+    # Start with exploration trajectories
     parser.add_argument('--exp_trajs', type=str, help='pickle file with exploration trajectories')
     return parser
        
@@ -199,12 +199,3 @@ if __name__ == '__main__':
     Logger.instance().stop()
     
     
-    
-    
-    ##examples:
-    # python -m psr_models.tests.call_test --method ode --render 1 --numtrajs 500 --batch 100 --len 50
-    # python -m psr_models.tests.call_test --method gym_pred --env Swimmer-v1 --render 1 --numtrajs 200 --batch 100 --len 50 --reg 1e-3 --rstep 1e-3 --monitor simple_exp
-    # python -m psr_models.tests.call_test --method gym_pred --env CartPole-v0 --render 1 --numtrajs 1000 --batch 500 --len 200 --reg 1e-3 --rstep 1e-3
-    # python -m psr_models.tests.call_test --method gym_model --env Swimmer-v1 --render 100 --numtrajs 300 --batch 100 --len 70 --reg 1e-3 --rstep 1e-4 --monitor 'short_seqs' --iter 100 --gen reward --nL 0 --wpred 1.0
-    # python -m psr_models.tests.call_test --method gym_model --env CartPole-v0 --render 100 --numtrajs 1000 --batch 500 --len 200 --reg 1e-3 --rstep 5e-4 --iter 100 --gen reward --nh 2 --nL 20 20 --wpred 1.0
-    # python call_test.test_policy_network --method lite-cont --env CartPole-v0 --numtrajs 20 --len 500 --past 10 --fut 10 --dim 50 --blindN 40 --Hdim 1000 --nL 1 --nh 10 --lr 1e-4 --wpred 10.0 --wgrad 0.1 --wdecay 0.1 --iter 100

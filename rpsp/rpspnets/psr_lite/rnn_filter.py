@@ -3,7 +3,7 @@
 """
 Created on Mon Feb 20 21:02:29 2017
 
-@author: ahefny
+@author: ahefny, zmarinho
 """
 
 from __future__ import print_function
@@ -123,12 +123,7 @@ class BaseRNNFilter(psr_base.ControlledModel):
         self._get_pre_states = theano.function(inputs=[t_ofeat_mat, t_afeat_mat], 
                                           outputs=t_prestates_mat,
                                           on_unused_input=on_unused_input)
-        #t_poststates_mat = self.tf_compute_post_states(t_ofeat_mat, t_afeat_mat)
-        #t_poststates_mat.name = 't_poststates_mat'
-        #self._get_post_states = theano.function(inputs=[t_ofeat_mat, t_afeat_mat], 
-        #                                  outputs=t_poststates_mat,
-        #                                  on_unused_input=on_unused_input)
-        
+
         return opt_output, opt_inputs        
             
     def train(self, traj_obs, traj_act, traj_act_probs=None, on_unused_input='raise'):
@@ -365,11 +360,7 @@ class ObsExtendedRNN(BaseRNNFilter):
         out_win = self._base_model.tf_get_weight_projections(W_win, t_psr_win_states, k=k, dim=self._win_dim)
         out_base.update(out_win)
         return out_base 
-    
-    #@property
-    #def t_initial_state(self):
-    #    self._t_state0 = dbg_print_shape('tstate0::in::initialst', self._t_state0)
-    #    return T.concatenate([self._t_state0, T.zeros(self._win_dim)], axis=0)
+
 
     def tf_update_state(self, t_state, t_ofeat, t_afeat):
         
@@ -382,24 +373,7 @@ class ObsExtendedRNN(BaseRNNFilter):
         t_new_state = self._base_model.tf_update_state(t_state, t_ofeat, t_afeat)*self._t_mask         
         out = T.concatenate([t_new_state, t_obswin[self._obs_dim:], t_last_obs], axis=0)
         return out
-    
-#     def tf_compute_post_states(self, t_ofeat_mat, t_afeat_mat):
-#         # Use scan function
-#         state_0 = self.t_initial_state
-#         
-#         #t_ofeat_mat = dbg_print_shape('tofeatmat::post', t_ofeat_mat)
-#         
-#         #state_0 = dbg_print_shape('tf_post::s0', state_0)
-#         hs,_ = theano.scan(fn=lambda fo,fa,h: self.tf_update_state(h,fo,fa),
-#                            outputs_info=state_0,
-#                            sequences=[t_ofeat_mat,t_afeat_mat])
-#         return hs 
-#     def tf_compute_pre_states(self, t_ofeat_mat, t_afeat_mat):
-#         state_0 = self.t_initial_state #initial_state
-#         #t_ofeat_mat = dbg_print_shape('tofeatmat', t_ofeat_mat)
-#         hs = self.tf_compute_post_states(t_ofeat_mat[:-1],t_afeat_mat[:-1])        
-#         return T.concatenate([T.reshape(state_0,(1,-1)), hs],axis=0)      
-#
+
      
     def tf_update_state_batch(self, t_state_mat, t_ofeat_mat, t_afeat_mat):
         raise NotImplementedError
@@ -430,16 +404,7 @@ class ObsExtendedRNN(BaseRNNFilter):
     
     def _save(self):
         return self._base_model._save()
-    
-    #TODO Remove this
-    def get_projs(self):
-        return None
-    @property
-    def _params_proj(self):
-        return []
-    @property
-    def _opt_U(self):
-        return 0.0
+
     
 class RNNFilter(BaseRNNFilter):
     def __init__(self, state_dim, horizon, optimizer='sgd', optimizer_step=1.0,
@@ -614,8 +579,6 @@ class RFFobs_RNN(ObservableRNNFilter):
         K.obs = self._fext_obs._U.shape[1]
         K.act = self._fext_act._U.shape[1]
         self._feat_dim = K
-        #self._fext_fut_act = self._feature_set['fut_act']
-        #K.fut_act = self._fext_fut_act._U.shape[1]
         self.set_psr(None)
         return
   
@@ -648,20 +611,16 @@ class RFFobs_RNN(ObservableRNNFilter):
                 # First time: create parameters
                 self._f_obs, self._t_U_obs, self._t_V_obs = self._t_rffpca(self._fext_obs, 'obs')
                 self._f_act, self._t_U_act, self._t_V_act = self._t_rffpca(self._fext_act, 'act')
-                #self._f_fut_act, self._t_U_fut_act, self._t_V_fut_act = self._t_rffpca(self._fext_fut_act, 'fut_act')
             else:
                 # Update parameters
                 self._t_U_obs.set_value(self._fext_obs._U.astype(theano.config.floatX))
                 self._t_V_obs.set_value(self._fext_obs._base_extractor._V.astype(theano.config.floatX))
                 self._t_U_act.set_value(self._fext_act._U.astype(theano.config.floatX))
                 self._t_V_act.set_value(self._fext_act._base_extractor._V.astype(theano.config.floatX))
-                #self._t_U_fut_act.set_value(self._fext_fut_act._U.astype(theano.config.floatX))
-                #self._t_V_fut_act.set_value(self._fext_fut_act._base_extractor._V.astype(theano.config.floatX))
         else:
             # Implement feature extraction using numpy
             self._f_obs = lambda x: x
             self._f_act = lambda x: x
-            #self._f_fut_act = lambda x: x 
         
         
     
@@ -700,18 +659,4 @@ class RFFobs_RNN(ObservableRNNFilter):
         assert not np.isnan(afeat).any(), 'actfeat is not nan'
         assert not np.isinf(afeat).any(), 'actfeat is not inf'     
         return afeat
-    
-    def get_projs(self):
-        projs={}
-        if self._opt_U:
-            projs['U_st'] = self._t_U_obs.get_value().T
-            projs['U_act'] = self._t_U_act.get_value().T
-        return projs
-    
-#     def _process_fut_act(self, fut_act):
-#         futafeat = self._f_fut_act.process(fut_act)
-#         assert not np.isnan(futafeat).any(), 'futafeat is not nan'
-#         assert not np.isinf(futafeat).any(), 'futafeat is not inf'      
-#         return futafeat
-      
-        
+

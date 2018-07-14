@@ -3,7 +3,7 @@
 """
 Created on Fri Feb 17 12:38:44 2017
 
-@author: ahefny
+@author: ahefny, zmarinho
 """
 
 from collections import defaultdict

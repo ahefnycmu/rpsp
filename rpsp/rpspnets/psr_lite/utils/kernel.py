@@ -1,6 +1,6 @@
 """
 Created on Wed Jul 27 15:20:04 2016
-@author: zmarinho and ahefny
+@author: zmarinho, ahefny
 """
 
 from IPython import embed
