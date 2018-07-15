@@ -19,6 +19,6 @@ setup(name='rpsp',
       install_requires=[
           'markdown',
       ],
-      package_data={'': ['rpsp.rpspnets.psr_lite.utils.libmkl_rt.so']},
+      package_data={'libmkl_rt': ['rpsp.rpspnets.psr_lite.utils.libmkl_rt.so']},
       include_package_data=True,
       zip_safe=False)
