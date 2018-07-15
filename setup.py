@@ -14,7 +14,7 @@ setup(name='rpsp',
       author_email='zmarinho@cmu.edu, ahefny@cmu.edu',
       license='MIT',
       packages=['rpsp', 'rpsp.envs', 'rpsp.explore', 'rpsp.filters', 'rpsp.policy_opt', 'rpsp.rpspnets',
-                'rpsp.rpspnets.psr_lite','rpsp.rpspnets.psr_lite.utils', 'rpsp.rpspnets._test', 'rpsp.run',
+                'rpsp.rpspnets.psr_lite','rpsp.rpspnets.psr_lite.utils', 'rpsp.run',
                 'rpsp.run.test_utils', 'rpsp.policy'],
       install_requires=[
           'markdown',
