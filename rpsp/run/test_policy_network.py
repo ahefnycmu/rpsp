@@ -132,7 +132,7 @@ def rpsp_filter(args, data=[], **kwargs):
         filter, model, feats = load_gru_filter(args, data=data)
 
     if args.addobs:
-        print ('Extended model: obs_dim ', kwargs['x_dim'])
+        #print ('Extended model: obs_dim ', kwargs['x_dim'])
         filter = rnn_filter.ObsExtendedRNN(filter, kwargs['x_dim'], args.filter_w, args.mask_state)
 
     if args.loadfile != '':
@@ -244,7 +244,6 @@ def run_policy_continuous(args, flname):
     (x_dim, a_dim) = env.dimensions
     args.a_dim = a_dim
     args.x_dim = x_dim
-    print('dimension:', x_dim, a_dim)
     model_exp = ObservableModel(x_dim)
     pi_exp = policies.RandomGaussianPolicy(x_dim, rng=args.rng)
     baseline = args.b
@@ -335,7 +334,7 @@ def get_exploration_trajs(args, model_exp, env, output_dim, min_traj_length):
     exp_trajs = env.run(model_exp, pi_exp, leni, render=False,
                         min_traj_length=min_traj_length, num_trajs=args.initN,
                         num_samples=args.initS)
-    print ('Using %d exp trajectories.' % len(exp_trajs))
+    #print ('Using %d exp trajectories.' % len(exp_trajs))
     col_trajs = [(t.obs, t.act) for t in exp_trajs]
     X_obs_rnd = [c[0] for c in col_trajs]
     X_act_rnd = [c[1] for c in col_trajs]

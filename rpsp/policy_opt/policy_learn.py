@@ -43,10 +43,8 @@ def learn_policy(policy_updater, model, environment, num_trajs=0, num_samples=0,
                                 num_samples=num_samples)
         print('iter=', i)
         print('Using %d trajectories with %d total samples' % (len(trajs), sum(t.length for t in trajs)))
-        print('update model')
         tic = time.time()
         res = policy_updater.update(trajs)
-        print('done update model', time.time() - tic)
 
         m = np.mean([np.sum(t.rewards) for t in trajs])
         s = np.std([np.sum(t.rewards) for t in trajs])

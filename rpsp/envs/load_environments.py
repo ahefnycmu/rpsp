@@ -121,17 +121,6 @@ def create_env_doublependulum(args):
 '''
 CLASSIC CONTROL ENVIRONMENTS
 '''
-def create_classic_env_mountaincar(args):
-    env = create_continuous_classic_env(args, 'MountainCar-v0', 'gym.envs.classic_control.mountain_car:MountainCarEnv',
-                                      [0], [0, 1], sim=PendulumContinuousSimulator())
-    return env
-
-
-def create_classic_env_pendulum(args):
-    env = create_continuous_classic_env(args,  'Pendulum-v0', 'gym.envs.classic_control.pendulum:PendulumEnv',
-                                      [0], [0, 1], sim=PendulumContinuousSimulator())
-    return env
-
 
 def create_classic_env_cartpole(args):
     env = create_continuous_classic_env(args, 'CartPole-v0', 'gym.envs.classic_control.cartpole:CartPoleEnv',
@@ -139,23 +128,12 @@ def create_classic_env_cartpole(args):
     return env
 
 
-def create_classic_env_acrobot(args):
-    env = create_continuous_classic_env(args, 'Acrobot-v0', 'gym.envs.classic_control.acrobot:AcrobotEnv',
-                                      [0, 1], [0, 1, 2, 3], sim=AcrobotContinuousSimulator())
-    return env
-
 
 env_dict = {'Swimmer-v1': create_env_swimmer,
             'Walker2d-v1': create_env_walker,
             'Hopper-v1': create_env_hopper,
             'CartPole-v1': create_env_Mcartpole,
-            'Ant-v1': create_env_ant,
-            'Acrobot-v1': create_env_doublependulum,
-            'Reacher-v1': create_env_reacher,
             'CartPole-v0': create_classic_env_cartpole,
-            'MountainCar-v0': create_classic_env_mountaincar,
-            'Acrobot-v0': create_classic_env_acrobot,
-            'Pendulum-v0': create_classic_env_pendulum,
             }
 
 

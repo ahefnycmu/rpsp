@@ -68,7 +68,6 @@ class BaseRNNFilter(psr_base.ControlledModel):
         return act
     
     def tf_get_weight_projections(self, t_W0, t_psr_states, k='Wpred', dim=None):
-        print (self.state_dimension)
         out = {}
         dim = self.state_dimension if dim is None else dim
         t_psrstates_reshaped = T.reshape(t_psr_states, (-1,dim)).T
@@ -165,7 +164,6 @@ class BaseRNNFilter(psr_base.ControlledModel):
                                     on_unused_input=on_unused_input)
         
         self._state0 = self._t_state0.get_value()
-        print ('state0', self._state0)
         end = time()
         print('finished in %f seconds'%(end-start))
     

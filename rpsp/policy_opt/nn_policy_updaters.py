@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 """
 Created on Tue Apr 25 20:07:55 2017
 
@@ -216,7 +218,7 @@ class NNPolicyUpdater(BasePolicyUpdater):
         self._params = self._policy.params
         self.gamma = kwargs.get('gamma', 0.98)
         baseline = kwargs.get('baseline', False)
-        print 'using baseline:', baseline
+        print ('using baseline:', baseline)
         self.clips = kwargs.get('clips', [])
         #if baseline is False or baseline is None: baseline = ZeroBaseline()  
         if isinstance(baseline, Baseline):
@@ -319,7 +321,6 @@ class NNPolicyUpdater(BasePolicyUpdater):
         return info
         
     def update(self, trajs):
-        print np.sum([t.states.sum() for t in trajs])
         traj_info = self._construct_traj_info(trajs)
         if not self._updater_built:            
             t_traj_info = OrderedDict([(k, _np2theano(k,v)) for k,v in traj_info.items()])
@@ -432,7 +433,6 @@ class TRPOPolicyUpdater(NNPolicyUpdater):
     def __init__(self, policy, **kwargs):
         NNPolicyUpdater.__init__(self, policy, **kwargs)
         self._step = kwargs['lr']
-        print 'STEP ', self._step
         self._params = policy.params
         X = T.tensor3()
         self._act_dist_fn = theano.function(inputs=[X], outputs=policy._t_compute_gaussian(X))
@@ -519,7 +519,7 @@ class TRPOPolicyUpdater(NNPolicyUpdater):
         t_traj_info = t_traj_info.copy()
         t_traj_info = self._t_append_actiondist_info(t_traj_info)
 
-        print 'Building Optimizer ...'
+        print('Building Optimizer ...')
         opt_cost = create_true_mean_function_nonseq(t_traj_info, self._t_single_traj_cost)
         opt_constraint = create_true_mean_function_nonseq(t_traj_info, self._t_traj_klscore)
         ratio_checks = create_all_function_valid(t_traj_info, self._t_ratio_limits)
@@ -529,7 +529,7 @@ class TRPOPolicyUpdater(NNPolicyUpdater):
                                             hvec=self._hvec)
 
         self._opt = ConstrainedOptimizer(ops, self._params, step=self._step)
-        print 'Finished building optimizer'
+        print ('Finished building optimizer')
 
     def _update(self, traj_info):
         self._opt.optimize(traj_info.values(), traj_info.values())

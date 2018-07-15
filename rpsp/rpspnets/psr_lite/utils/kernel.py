@@ -192,6 +192,7 @@ def sample_rff(num_samples,dim,s,orth=False, rng=None):
 
 def _load_mkl_sincos():
     try:
+        import libmkl_rt
         mkl = ctypes.cdll.LoadLibrary('libmkl_rt.so')
         in_type = np.ctypeslib.ndpointer(dtype=np.float64)
         out_type = np.ctypeslib.ndpointer(dtype=np.float64, flags='WRITEABLE')

@@ -67,7 +67,6 @@ class HSEPSR(ControlledModel):
         Gah = np.zeros((N,N,N))
                       
         for i in xrange(N):
-            print(i)
             ai = Ah[:,i].reshape((-1,1))            
             Gai = npla.solve((ai * G_fa) + R, np.diag(ai.ravel()))
             GGa[:,i] = Gai.dot(G_fa).ravel()
@@ -78,7 +77,7 @@ class HSEPSR(ControlledModel):
         
         # Shifted State
         for i in xrange(N):
-            print('%d - shifted' % i)                
+            #print('%d - shifted' % i)
             ai = Ash[:,i].reshape((-1,1))
             Gai = npla.solve((ai * G_fa) + R, np.diag(ai.ravel()))           
             GGo[:,i] = G_fo.dot(Gai).ravel()

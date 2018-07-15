@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 """
 Created on Fri Feb 17 12:38:44 2017
 
@@ -93,7 +95,7 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         
     #overrides
     def _load(self, params):
-        print 'load rffpsr rnn'
+        print('load rffpsr rnn')
         self._rffpsr._load(params['rffpsr'])
         self._reset_psr(self._rffpsr)
         return
@@ -159,8 +161,7 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
         self._t_U_oo = theano.shared(name='U_oo', value=psr._U_oo.astype(theano.config.floatX))
         self._t_UT_st = theano.shared(name='U_st', value=psr._U_st.T.astype(theano.config.floatX))
 
-        s0 = psr.initial_state    
-        print 'state0 : ', s0    
+        s0 = psr.initial_state
         self._t_state0 = theano.shared(name='state0',value=s0.astype(theano.config.floatX))
                            
         self._params_state = [self._t_W_s2ex,self._t_W_s2oo]
@@ -192,7 +193,7 @@ class RFFPSR_RNN(rnn_filter.BaseRNNFilter):
     def set_params(self, param_vec, check_before_update=False):
         i = 0
         if np.isnan(param_vec).any() or np.isinf(param_vec).any():
-            print 'param is nan rffpsr policy! not updated'
+            print ('param is nan rffpsr policy! not updated')
             return
         if check_before_update:
             params_before = np.copy(self.get_params())

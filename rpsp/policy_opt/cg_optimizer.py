@@ -1,5 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+
 """
 Created on Mon May  8 09:22:48 2017
 
@@ -181,14 +183,14 @@ class DefaultConstraintOptimizerOps(ConstrainedOptimizerOps):
         '''
         self._normalize = normalize
         t_new_params = [_np2theano(p.name, p.get_value(borrow=True)) for p in params]
-                                
-        print 'Compiling constraint function ... ',
+
+        print('Compiling constraint function ... ')
         s = time()
         self.constraint = theano.function(inputs=t_constraint_inputs, outputs=t_constraint,
-                                           on_unused_input='ignore')        
-        print 'finished in %f seconds' % (time()-s)
-         
-        print 'Building cost grad function ... ',
+                                           on_unused_input='ignore')
+        print ('finished in %f seconds' % (time() - s))
+
+        print ('Building cost grad function ... ', end=' ')
         s = time()
         if self._normalize:
             # if isinstance(t_cost,list):
@@ -198,7 +200,7 @@ class DefaultConstraintOptimizerOps(ConstrainedOptimizerOps):
             #     updates = res['updates']
             #     _t_cost_grad = res['grads']
             # else:
-            print 'Normalizing single TRPO gradients'
+            print ('Normalizing single TRPO gradients')
             _t_cost_grad, weight, updates = tf_get_normalized_grad_per_param(-t_cost, params)
             t_cost = weight*t_cost
         else:
@@ -209,42 +211,42 @@ class DefaultConstraintOptimizerOps(ConstrainedOptimizerOps):
                 t_cost = theano.gradient.grad_clip(t_cost,clip_bounds[0],clip_bounds[1])
             _t_cost_grad = T.grad(-t_cost, wrt=params)    
             updates = []
-            
-        print 'finished in %f seconds' % (time()-s)
-        
-        print 'Compiling cost function ... ',                        
+
+        print ('finished in %f seconds' % (time() - s))
+
+        print ('Compiling cost function ... ', end=' ')
         s = time()
         self.cost = theano.function(inputs=t_cost_inputs, outputs=t_cost,
                                     on_unused_input='ignore')
-        print 'finished in %f seconds' % (time()-s)
-        
-        print 'Compiling cost grad function ... ',
-        s = time()        
+        print ('finished in %f seconds' % (time() - s))
+
+        print ('Compiling cost grad function ... ', end=' ')
+        s = time()
         self._cost_grad = theano.function(inputs=t_cost_inputs, outputs=[t_cost]+_t_cost_grad,
                                          on_unused_input='ignore', updates=updates)
                                          #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
-        print 'finished in %f seconds' % (time()-s)       
-                
+        print ('finished in %f seconds' % (time() - s))
+
         if hvec == 'exact':                    
-            print 'Building Hx function ... ',
+            print ('Building Hx function ... ', end=' ')
             s = time()
             
             Hx = _t_Hvec(t_constraint, t_new_params, params) 
             Hx = [h + reg*p for (h,p) in zip(Hx,t_new_params)]
-            print 'finished in %f seconds' % (time()-s)
-                            
-            print 'Compiling Hx function ...',
+            print ('finished in %f seconds' % (time() - s))
+
+            print ('Compiling Hx function ...', end=' ')
             s = time()
             self._constraint_Hx = theano.function(inputs=t_constraint_inputs+t_new_params,
                                                   outputs=Hx, on_unused_input='ignore')
                                                   #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
             
             self.constraint_Hx = lambda inputs,new_params : self._constraint_Hx(*(inputs+new_params))
-            print 'finished in %f seconds' % (time()-s)
+            print ('finished in %f seconds' % (time() - s))
         else:            
             assert hvec == 'fd'
-            print 'Using finite difference Hvec'
-            t_g = T.grad(t_constraint, wrt=params)    
+            print ('Using finite difference Hvec')
+            t_g = T.grad(t_constraint, wrt=params)
             #t_g = [dbg_nn_assert_notnan(gg, 'ng') for gg in t_g]
             
             g = theano.function(inputs=t_constraint_inputs, outputs=t_g, on_unused_input='ignore')            
@@ -270,25 +272,25 @@ class GaussianFisherConstraintOptimizerOps(ConstrainedOptimizerOps):
         t_new_logstd = t_traj_info['new_act_logstd']
         t_new_logstd = t_new_logstd.reshape((-1,t_new_logstd.shape[-1]))
 
-        print 'Compiling cost function ... ',                        
+        print ('Compiling cost function ... ', end=' ')
         s = time()
         self.cost = theano.function(inputs=t_inputs, outputs=t_cost,
                                     on_unused_input='ignore')
-        print 'finished in %f seconds' % (time()-s)
-        
-        print 'Building cost grad function ... ',
+        print ('finished in %f seconds' % (time() - s))
+
+        print ('Building cost grad function ... ', end=' ')
         s = time()
         _t_cost_grad = T.grad(-t_cost, wrt=params)
-        print 'finished in %f seconds' % (time()-s)    
+        print ('finished in %f seconds' % (time() - s))
 
-        print 'Compiling cost grad function ... ',
-        s = time()        
+        print ('Compiling cost grad function ... ', end=' ')
+        s = time()
         self._cost_grad = theano.function(inputs=t_inputs, outputs=[t_cost]+_t_cost_grad,
                                          on_unused_input='ignore')
-        print 'finished in %f seconds' % (time()-s) 
-        
-        print 'Building Hx function ... ',
-        s = time()        
+        print ('finished in %f seconds' % (time() - s))
+
+        print ('Building Hx function ... ', end=' ')
+        s = time()
         mu = T.concatenate([t_new_mean,t_new_logstd],axis=-1)        
         Jx = sum([T.Rop(mu, p, x) for (p,x) in zip(params,t_new_params)])                        
         M = T.tile(T.eye(2), (mu.shape[0], 1, 1))        
@@ -300,15 +302,15 @@ class GaussianFisherConstraintOptimizerOps(ConstrainedOptimizerOps):
         print 'finished in %f seconds' % (time()-s)
         
         # TODO: Use mask to handle  different lengths.
-        
-        print 'Compiling Hx function ...',
+
+        print ('Compiling Hx function ...', end=' ')
         s = time()
         self._constraint_Hx = theano.function(inputs=t_inputs+t_new_params,
                                               outputs=Hx, on_unused_input='ignore')
         
         self.constraint_Hx = lambda inputs,params : self._constraint_Hx(*(inputs+params))
-        print 'finished in %f seconds' % (time()-s)
-        
+        print ('finished in %f seconds' % (time() - s))
+
     def cost_grad(self, *cost_inputs):
         cg = self._cost_grad(*cost_inputs)
         return cg[0], cg[1:]
