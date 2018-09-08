@@ -2,7 +2,7 @@
 
 This is Python 2.7 code for the paper <a href='https://arxiv.org/pdf/1803.01489.pdf'>"Recurrent Predictive State Policy Networks"</a> published at ICML 2018. 
 
-## Instalation
+## Installation
 
 <p> Install the package: </p>
 <pre><code>python setup.py install</code></pre>
